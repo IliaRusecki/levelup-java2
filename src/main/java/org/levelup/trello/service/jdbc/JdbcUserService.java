@@ -2,8 +2,8 @@ package org.levelup.trello.service.jdbc;
 
 import lombok.SneakyThrows;
 import org.levelup.trello.jdbc.JdbcConnectionService;
-import org.levelup.trello.service.UserService;
 import org.levelup.trello.model.User;
+import org.levelup.trello.service.UserService;
 
 import java.sql.*;
 
@@ -65,6 +65,33 @@ public class JdbcUserService implements UserService {
         }
     }
 
+    @Override
+    public boolean authorizeUser(String login, String password) {
+        try (Connection connection = jdbcConnectionService.openConnection()) {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery("select id, login from users");
+
+            while (resultSet.next()) {
+                Integer userIdFromDB = resultSet.getInt(1);
+                String loginFromDB = resultSet.getString(2);
+                if (login.equals(loginFromDB)) {
+                    String passwordFromDB = getUserPasswordById(connection, userIdFromDB);
+                    if (password.equals(passwordFromDB)) {
+                        return true;
+                    } else {
+                        System.out.println("Your password is incorrect");
+                        return false;
+                    }
+                }
+            }
+            System.out.println("Your login is incorrect");
+            return false;
+
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
     @SneakyThrows
     private void saveUserCredentials(Connection connection, Integer userId, String password) {
         PreparedStatement stmt = connection.prepareStatement("insert into user_credentials values (?, ?)");
@@ -72,6 +99,14 @@ public class JdbcUserService implements UserService {
         stmt.setString(2, password);
 
         stmt.executeUpdate();
+    }
+
+    @SneakyThrows
+    private String getUserPasswordById(Connection connection, Integer userId) {
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery(String.format("select password from user_credentials where user_id = %s", userId));
+        resultSet.next();
+        return resultSet.getString(1);
     }
 
 }
