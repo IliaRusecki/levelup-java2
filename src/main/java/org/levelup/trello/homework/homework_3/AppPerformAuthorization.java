@@ -1,4 +1,4 @@
-package org.levelup.trello;
+package org.levelup.trello.homework.homework_3;
 
 import org.levelup.trello.service.UserService;
 import org.levelup.trello.service.jdbc.JdbcUserService;
