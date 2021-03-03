@@ -22,9 +22,9 @@ public class AppPerformAuthorization {
         boolean isUserExistInDB = userService.authorizeUser(login, password);
 
         if(isUserExistInDB) {
-            System.out.println("You are logged in");
+            System.out.printf("Вы вошли в систему под логином <%s>%n", login);
         } else {
-            System.out.println("You are NOT logged in");
+            System.out.printf("Пользователя с таким логином <%s> не существует.%n", login);
         }
     }
 }

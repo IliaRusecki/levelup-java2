@@ -13,35 +13,26 @@ import java.sql.*;
  * Класс, ответсвенный за работу с таблица пользователей (user, user_credentials)
  */
 
-// @RequiredArgsConstructor
-// public JdbcUserService(JdbcConnectionService service) { this.jdbcConnectionService = service; }
 
 public class JdbcUserService implements UserService {
 
-    // final - означает, что поле является константным - его нельзя изменить после присвоения значения
-    // присвоение значения обязано происходить сразу же (либо в конструкторе)
     private final JdbcConnectionService jdbcConnectionService;
 
     public JdbcUserService() {
         this.jdbcConnectionService = new JdbcConnectionService();
     }
 
-    // conn.createStatement("into users (login, name, email) values (" + login + ", " + name + " + password + ")")
-    // "into users (login, name, email) values (" + login + ", " + name + ", " + password + ")"
-
     @Override
     public User createUser(String login, String email, String name, String password) {
         try (Connection connection = jdbcConnectionService.openConnection()) {
 
             String sql = "insert into users ( login, name, email) values ( ?, ?, ?)";
-            // String sql = "insert into users (login, name, email) values (?, ?, ?) returning id";
-            // PreparedStatement
+
             PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             stmt.setString(1, login);
             stmt.setString(2, name);
             stmt.setString(3, email);
 
-            // boolean hasResultSet = stmt.execute(); - выполяет запрос и возвращает вам таблицу в ответе (если она есть)
             int rowsAffected = stmt.executeUpdate(); // количество строк, которые были изменены вашим запросом
             System.out.println("Количество строк, которое было изменено: " + rowsAffected);
 
@@ -80,12 +71,12 @@ public class JdbcUserService implements UserService {
                     if (password.equals(passwordFromDB)) {
                         return true;
                     } else {
-                        System.out.println("Неверный пароль для данного логина");
+                        System.out.println("Неверный пароль для данного логина.");
                         return false;
                     }
                 }
             }
-            System.out.println("Your login is incorrect");
+            System.out.println("Ваш логин неправильный.");
             return false;
 
         } catch (SQLException ex) {
@@ -105,7 +96,7 @@ public class JdbcUserService implements UserService {
                 loginFromDB = resultSet.getString(2);
 
             } catch (PSQLException exc) {
-                System.out.printf("Юзера с логином <%s> нет в БД%n", login);
+                System.out.printf("Юзера с логином <%s> нет в БД.%n", login);
                 throw new RuntimeException(exc);
             }
 
