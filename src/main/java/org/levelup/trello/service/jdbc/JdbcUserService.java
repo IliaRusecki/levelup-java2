@@ -4,6 +4,7 @@ import lombok.SneakyThrows;
 import org.levelup.trello.jdbc.JdbcConnectionService;
 import org.levelup.trello.model.User;
 import org.levelup.trello.service.UserService;
+import org.postgresql.util.PSQLException;
 
 import java.sql.*;
 
@@ -79,7 +80,7 @@ public class JdbcUserService implements UserService {
                     if (password.equals(passwordFromDB)) {
                         return true;
                     } else {
-                        System.out.println("Your password is incorrect");
+                        System.out.println("Неверный пароль для данного логина");
                         return false;
                     }
                 }
@@ -89,6 +90,34 @@ public class JdbcUserService implements UserService {
 
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
+        }
+    }
+
+    @Override
+    public User getUser(String login) {
+        try (Connection connection = jdbcConnectionService.openConnection()) {
+
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery(String.format("select * from users where login = '%s'", login));
+            resultSet.next();
+            String loginFromDB;
+            try {
+                loginFromDB = resultSet.getString(2);
+
+            } catch (PSQLException exc) {
+                System.out.printf("Юзера с логином <%s> нет в БД%n", login);
+                throw new RuntimeException(exc);
+            }
+
+            Integer userIdFromDB = resultSet.getInt(1);
+            String nameFromDB = resultSet.getString(4);
+            String password = getUserPasswordById(connection, userIdFromDB);
+
+            return new User(userIdFromDB, nameFromDB, loginFromDB, password);
+
+        } catch (SQLException exc) {
+            System.out.println("Ошибка при работе с базой: " + exc.getMessage());
+            throw new RuntimeException(exc);
         }
     }
 
