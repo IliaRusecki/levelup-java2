@@ -3,6 +3,7 @@ package org.levelup.trello.service.jdbc;
 import lombok.SneakyThrows;
 import org.levelup.trello.jdbc.JdbcConnectionService;
 import org.levelup.trello.model.User;
+import org.levelup.trello.service.TeamService;
 import org.levelup.trello.service.UserService;
 import org.postgresql.util.PSQLException;
 
@@ -10,20 +11,22 @@ import java.sql.*;
 
 
 /**
- * Класс, ответсвенный за работу с таблица пользователей (user, user_credentials)
+ * Класс, ответсвенный за работу с таблицами пользователей (user, user_credentials)
  */
 
 
 public class JdbcUserService implements UserService {
 
     private final JdbcConnectionService jdbcConnectionService;
+    private final TeamService teamService;
 
     public JdbcUserService() {
         this.jdbcConnectionService = new JdbcConnectionService();
+        this.teamService = new JdbcTeamService();
     }
 
     @Override
-    public User createUser(String login, String email, String name, String password) {
+    public User createUser(String login, String email, String name, String password, String team) {
         try (Connection connection = jdbcConnectionService.openConnection()) {
 
             String sql = "insert into users ( login, name, email) values ( ?, ?, ?)";
@@ -36,11 +39,6 @@ public class JdbcUserService implements UserService {
             int rowsAffected = stmt.executeUpdate(); // количество строк, которые были изменены вашим запросом
             System.out.println("Количество строк, которое было изменено: " + rowsAffected);
 
-            // if (hasResultSet) {
-            //      ResultSet keys = stmt.getResultSet();
-            //      keys.next();
-            //      int generatedId = keys.getInt(1);
-            // }
             ResultSet keys = stmt.getGeneratedKeys(); // набор сгенерированных ID
             keys.next();
 
@@ -48,6 +46,7 @@ public class JdbcUserService implements UserService {
             System.out.println("ID пользователя: " + generateId);
 
             saveUserCredentials(connection, generateId, password);
+            addUserToTeam(connection, generateId, team);
 
             return new User(generateId, name, login, email);
 
@@ -60,23 +59,43 @@ public class JdbcUserService implements UserService {
     @Override
     public boolean authorizeUser(String login, String password) {
         try (Connection connection = jdbcConnectionService.openConnection()) {
-            Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery("select id, login from users");
+            String sql = "SELECT u.id, u.login, u.email, u.name, cr.password " +
+                    "FROM users u JOIN user_credentials cr ON u.id = cr.user_id WHERE u.login = ?";
+            PreparedStatement statement = connection.prepareStatement(sql);
+            statement.setString(1, login);
+            ResultSet resultSet = statement.executeQuery();
 
             while (resultSet.next()) {
-                Integer userIdFromDB = resultSet.getInt(1);
                 String loginFromDB = resultSet.getString(2);
+                String passwordFromDB = resultSet.getString(5);
                 if (login.equals(loginFromDB)) {
-                    String passwordFromDB = getUserPasswordById(connection, userIdFromDB);
                     if (password.equals(passwordFromDB)) {
                         return true;
                     } else {
-                        System.out.println("Неверный пароль для данного логина.");
+                        System.out.println("Неверный пароль для данного логина");
                         return false;
                     }
                 }
             }
-            System.out.println("Ваш логин неправильный.");
+            System.out.println("Пользователя с данным логином не существует");
+            return false;
+
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public boolean checkUserInDB(String login) {
+        try (Connection connection = jdbcConnectionService.openConnection()) {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery("select login from users");
+
+            while (resultSet.next()) {
+                String loginFromDB = resultSet.getString(1);
+                if (login.equals(loginFromDB)) {
+                    return true;
+                }
+            }
             return false;
 
         } catch (SQLException ex) {
@@ -85,11 +104,14 @@ public class JdbcUserService implements UserService {
     }
 
     @Override
-    public User getUser(String login) {
+    public User getUserByLogin(String login) {
         try (Connection connection = jdbcConnectionService.openConnection()) {
+            String sql = "SELECT u.id, u.login, u.email, u.name, cr.password " +
+                    "FROM users u JOIN user_credentials cr ON u.id = cr.user_id WHERE u.login = ?";
 
-            Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery(String.format("select * from users where login = '%s'", login));
+            PreparedStatement statement = connection.prepareStatement(sql);
+            statement.setString(1, login);
+            ResultSet resultSet = statement.executeQuery();
             resultSet.next();
             String loginFromDB;
             try {
@@ -102,13 +124,34 @@ public class JdbcUserService implements UserService {
 
             Integer userIdFromDB = resultSet.getInt(1);
             String nameFromDB = resultSet.getString(4);
-            String password = getUserPasswordById(connection, userIdFromDB);
+            String password = resultSet.getString(5);
 
             return new User(userIdFromDB, nameFromDB, loginFromDB, password);
 
         } catch (SQLException exc) {
             System.out.println("Ошибка при работе с базой: " + exc.getMessage());
             throw new RuntimeException(exc);
+        }
+    }
+
+    public void printUsers() {
+        try (Connection connection = jdbcConnectionService.openConnection()) {
+
+            Statement statement = connection.createStatement();
+
+            ResultSet resultSet = statement.executeQuery("select * from users");
+
+            while (resultSet.next()) {
+                int id = resultSet.getInt(1);
+                String login = resultSet.getString(2);
+                String email = resultSet.getString("email");
+                String name = resultSet.getString(4);
+
+                System.out.println(String.join(" | ", Integer.toString(id), login, email, name));
+            }
+
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
         }
     }
 
@@ -122,11 +165,26 @@ public class JdbcUserService implements UserService {
     }
 
     @SneakyThrows
-    private String getUserPasswordById(Connection connection, Integer userId) {
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery(String.format("select password from user_credentials where user_id = %s", userId));
-        resultSet.next();
-        return resultSet.getString(1);
+    private void addUserToTeam(Connection connection, Integer userId, String teamName) {
+        String sql = "select id from team where name = ?";
+
+        PreparedStatement statement = connection.prepareStatement(sql);
+        statement.setString(1, teamName);
+        ResultSet resultSet = statement.executeQuery();
+
+        int teamId = -1;
+        while (resultSet.next()) {
+            teamId = resultSet.getInt(1);
+        }
+
+        if (teamId == -1) {
+            teamId = teamService.createTeam(teamName);
+        }
+
+        PreparedStatement insertStmt = connection.prepareStatement("insert into team_member values (?, ?)");
+        insertStmt.setInt(1, teamId);
+        insertStmt.setInt(2, userId);
+        insertStmt.executeUpdate();
     }
 
 }

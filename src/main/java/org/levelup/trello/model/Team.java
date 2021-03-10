@@ -5,9 +5,6 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class User {
-    private Integer id;
+public class Team {
     private String name;
-    private String login;
-    private String password;
 }

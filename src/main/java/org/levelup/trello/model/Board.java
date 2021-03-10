@@ -5,9 +5,10 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class User {
+public class Board {
     private Integer id;
     private String name;
-    private String login;
-    private String password;
+    private boolean favourite;
+    private Integer userId;
+
 }
