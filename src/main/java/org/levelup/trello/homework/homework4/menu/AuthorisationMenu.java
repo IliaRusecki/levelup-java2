@@ -14,6 +14,7 @@ public class AuthorisationMenu {
    private final UserService userService;
    private final BufferedReader consoleReader;
 
+
     public AuthorisationMenu() {
         userService = new JdbcUserService();
         consoleReader = new BufferedReader(new InputStreamReader(System.in));

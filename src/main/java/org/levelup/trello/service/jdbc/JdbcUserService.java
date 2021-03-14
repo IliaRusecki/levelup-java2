@@ -1,6 +1,7 @@
 package org.levelup.trello.service.jdbc;
 
 import lombok.SneakyThrows;
+import org.levelup.trello.homework.homework6.ConnectionPool;
 import org.levelup.trello.jdbc.JdbcConnectionService;
 import org.levelup.trello.model.User;
 import org.levelup.trello.service.TeamService;
@@ -19,6 +20,8 @@ public class JdbcUserService implements UserService {
 
     private final JdbcConnectionService jdbcConnectionService;
     private final TeamService teamService;
+    ConnectionPool connectionPool = ConnectionPool.create();
+
 
     public JdbcUserService() {
         this.jdbcConnectionService = new JdbcConnectionService();
@@ -27,8 +30,8 @@ public class JdbcUserService implements UserService {
 
     @Override
     public User createUser(String login, String email, String name, String password, String team) {
-        try (Connection connection = jdbcConnectionService.openConnection()) {
-
+        try  {
+            Connection connection = connectionPool.getConnection();
             String sql = "insert into users ( login, name, email) values ( ?, ?, ?)";
 
             PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
@@ -47,6 +50,7 @@ public class JdbcUserService implements UserService {
 
             saveUserCredentials(connection, generateId, password);
             addUserToTeam(connection, generateId, team);
+            connectionPool.releaseConnection(connection);
 
             return new User(generateId, name, login, email);
 
@@ -58,12 +62,14 @@ public class JdbcUserService implements UserService {
 
     @Override
     public boolean authorizeUser(String login, String password) {
-        try (Connection connection = jdbcConnectionService.openConnection()) {
+        try {
+            Connection connection = connectionPool.getConnection();
             String sql = "SELECT u.id, u.login, u.email, u.name, cr.password " +
                     "FROM users u JOIN user_credentials cr ON u.id = cr.user_id WHERE u.login = ?";
             PreparedStatement statement = connection.prepareStatement(sql);
             statement.setString(1, login);
             ResultSet resultSet = statement.executeQuery();
+            connectionPool.releaseConnection(connection);
 
             while (resultSet.next()) {
                 String loginFromDB = resultSet.getString(2);
@@ -86,9 +92,11 @@ public class JdbcUserService implements UserService {
     }
 
     public boolean checkUserInDB(String login) {
-        try (Connection connection = jdbcConnectionService.openConnection()) {
+        try {
+            Connection connection = connectionPool.getConnection();
             Statement statement = connection.createStatement();
             ResultSet resultSet = statement.executeQuery("select login from users");
+            connectionPool.releaseConnection(connection);
 
             while (resultSet.next()) {
                 String loginFromDB = resultSet.getString(1);
@@ -105,7 +113,8 @@ public class JdbcUserService implements UserService {
 
     @Override
     public User getUserByLogin(String login) {
-        try (Connection connection = jdbcConnectionService.openConnection()) {
+        try {
+            Connection connection = connectionPool.getConnection();
             String sql = "SELECT u.id, u.login, u.email, u.name, cr.password " +
                     "FROM users u JOIN user_credentials cr ON u.id = cr.user_id WHERE u.login = ?";
 
@@ -125,7 +134,7 @@ public class JdbcUserService implements UserService {
             Integer userIdFromDB = resultSet.getInt(1);
             String nameFromDB = resultSet.getString(4);
             String password = resultSet.getString(5);
-
+            connectionPool.releaseConnection(connection);
             return new User(userIdFromDB, nameFromDB, loginFromDB, password);
 
         } catch (SQLException exc) {
@@ -135,11 +144,11 @@ public class JdbcUserService implements UserService {
     }
 
     public void printUsers() {
-        try (Connection connection = jdbcConnectionService.openConnection()) {
-
+        try {
+            Connection connection = connectionPool.getConnection();
             Statement statement = connection.createStatement();
-
             ResultSet resultSet = statement.executeQuery("select * from users");
+            connectionPool.releaseConnection(connection);
 
             while (resultSet.next()) {
                 int id = resultSet.getInt(1);

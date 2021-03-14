@@ -1,5 +1,6 @@
 package org.levelup.trello.service.jdbc;
 
+import org.levelup.trello.homework.homework6.ConnectionPool;
 import org.levelup.trello.jdbc.JdbcConnectionService;
 import org.levelup.trello.service.TeamService;
 
@@ -7,6 +8,7 @@ import java.sql.*;
 
 public class JdbcTeamService implements TeamService {
     private final JdbcConnectionService jdbcConnectionService;
+    ConnectionPool connectionPool = ConnectionPool.create();
 
     public JdbcTeamService() {
         this.jdbcConnectionService = new JdbcConnectionService();
@@ -14,7 +16,8 @@ public class JdbcTeamService implements TeamService {
 
     @Override
     public int createTeam(String name) {
-        try (Connection connection = jdbcConnectionService.openConnection()) {
+        try {
+            Connection connection = connectionPool.getConnection();
 
             String sql = "INSERT into team (name) values (?)";
 
@@ -24,6 +27,7 @@ public class JdbcTeamService implements TeamService {
 
             ResultSet keys = stmt.getGeneratedKeys(); // набор сгенерированных ID
             keys.next();
+            connectionPool.releaseConnection(connection);
 
             return keys.getInt(1); // получить ID
 
@@ -40,12 +44,14 @@ public class JdbcTeamService implements TeamService {
 
     @Override
     public int getTeamIdByName(String name) {
-        try (Connection connection = jdbcConnectionService.openConnection()) {
+        try {
+            Connection connection = connectionPool.getConnection();
 
             String sql = "SELECT id FROM team WHERE name = ?";
             PreparedStatement statement = connection.prepareStatement(sql);
             statement.setString(1, name);
             ResultSet resultSet = statement.executeQuery();
+            connectionPool.releaseConnection(connection);
 
             int teamId = -1;
             while (resultSet.next()) {

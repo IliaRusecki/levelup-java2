@@ -12,6 +12,7 @@ public class BoardsMenu {
     private final BoardsService boardsService;
     private final BufferedReader consoleReader;
 
+
     public BoardsMenu() {
         boardsService = new JdbcBoardsService();
         consoleReader = new BufferedReader(new InputStreamReader(System.in));
@@ -109,7 +110,7 @@ public class BoardsMenu {
             String favourite = consoleReader.readLine();
             System.out.println("Введите название вашей команды, для которой вы хотите создать доску");
             String team = consoleReader.readLine();
-            boolean isBoardCreated = boardsService.createBoard(user, boardName, Boolean.getBoolean(favourite), team);
+            boolean isBoardCreated = boardsService.createBoard(user, boardName, Boolean.parseBoolean(favourite), team);
             if (isBoardCreated) {
                 System.out.println("Выбранная доска успешно создана");
 

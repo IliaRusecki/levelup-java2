@@ -1,5 +1,6 @@
 package org.levelup.trello.service.jdbc;
 
+import org.levelup.trello.homework.homework6.ConnectionPool;
 import org.levelup.trello.jdbc.JdbcConnectionService;
 import org.levelup.trello.model.Board;
 import org.levelup.trello.model.User;
@@ -9,6 +10,7 @@ import org.levelup.trello.service.TeamService;
 import java.sql.*;
 
 public class JdbcBoardsService implements BoardsService {
+    ConnectionPool connectionPool = ConnectionPool.create();
     private final JdbcConnectionService jdbcConnectionService;
     private final TeamService teamService;
 
@@ -20,16 +22,17 @@ public class JdbcBoardsService implements BoardsService {
 
     @Override
     public boolean updateBoard(User user, String oldName, String newName, boolean favourite) {
-        try (Connection connection = jdbcConnectionService.openConnection()) {
-
+        try {
+            Connection connection = connectionPool.getConnection();
             String sql = "UPDATE boards SET name = ?, favourite = ? WHERE owner_id = ? AND name = ?";
             PreparedStatement statement = connection.prepareStatement(sql);
             statement.setString(1, newName);
             statement.setBoolean(2, favourite);
             statement.setInt(3, user.getId());
             statement.setString(4, oldName);
-
             int affectedRows = statement.executeUpdate();
+
+            connectionPool.releaseConnection(connection);
             return affectedRows != 0;
 
         } catch (SQLException exc) {
@@ -40,7 +43,8 @@ public class JdbcBoardsService implements BoardsService {
 
     @Override
     public void printBoards(User user) {
-        try (Connection connection = jdbcConnectionService.openConnection()) {
+        try {
+            Connection connection = connectionPool.getConnection();
 
             String sql = "SELECT name, favourite FROM boards WHERE owner_id = ?";
             PreparedStatement statement = connection.prepareStatement(sql);
@@ -52,6 +56,8 @@ public class JdbcBoardsService implements BoardsService {
                 String favourite = resultSet.getString(2);
                 System.out.println(String.join(" | ", name, favourite));
             }
+            connectionPool.releaseConnection(connection);
+
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         }
@@ -59,8 +65,8 @@ public class JdbcBoardsService implements BoardsService {
 
     @Override
     public boolean createBoard(User user, String newBoard, boolean favourite, String team) {
-        try (Connection connection = jdbcConnectionService.openConnection()) {
-
+        try {
+            Connection connection = connectionPool.getConnection();
             String sql = "INSERT into boards (name, favourite, owner_id, team_id) values ( ?, ?, ?, ?)";
             int teamId = teamService.getTeamIdByName(team);
             if (teamId != -1) {
@@ -70,6 +76,8 @@ public class JdbcBoardsService implements BoardsService {
                 stmt.setInt(3, user.getId());
                 stmt.setInt(4, teamId);
                 stmt.execute();
+                connectionPool.releaseConnection(connection);
+
                 return true;
             } else {
                 System.out.println("Данной команды не существует");
@@ -84,13 +92,14 @@ public class JdbcBoardsService implements BoardsService {
 
     @Override
     public boolean deleteBoard(User user, String boardName) {
-        try (Connection connection = jdbcConnectionService.openConnection()) {
-
+        try {
+            Connection connection = connectionPool.getConnection();
             String sql = "DELETE FROM boards WHERE name = ? AND owner_id in (SELECT id FROM users WHERE login = ?)";
             PreparedStatement statement = connection.prepareStatement(sql);
             statement.setString(1, boardName);
             statement.setString(2, user.getLogin());
             int affectedRows = statement.executeUpdate();
+            connectionPool.releaseConnection(connection);
             return affectedRows != 0;
         } catch (SQLException exc) {
             System.out.println("Ошибка при работе с базой: " + exc.getMessage());
@@ -100,7 +109,8 @@ public class JdbcBoardsService implements BoardsService {
 
     @Override
     public Board getUserBoard(User user, String boardName) {
-        try (Connection connection = jdbcConnectionService.openConnection()) {
+        try {
+            Connection connection = connectionPool.getConnection();
 
             String sql = "SELECT board_id, name, favourite FROM boards WHERE owner_id = ? AND name = ?";
             PreparedStatement statement = connection.prepareStatement(sql);
@@ -108,6 +118,7 @@ public class JdbcBoardsService implements BoardsService {
             statement.setString(2, boardName);
             ResultSet resultSet = statement.executeQuery();
 
+            connectionPool.releaseConnection(connection);
             while (resultSet.next()) {
                 Integer boardId = resultSet.getInt(1);
                 String name = resultSet.getString(2);
